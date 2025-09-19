@@ -123,15 +123,9 @@ contract MevAuctionHook is IHooks, Ownable {
         BalanceDelta delta
     );
 
-    event BackRunFailed(
-        PoolId indexed poolId,
-        uint256 backRunAmount
-    );
+    event BackRunFailed(PoolId indexed poolId, uint256 backRunAmount);
 
-    event LPRewardDistributed(
-        PoolId indexed poolId,
-        uint256 reward
-    );
+    event LPRewardDistributed(PoolId indexed poolId, uint256 reward);
 
     event LPRewardClaimed(
         PoolId indexed poolId,
@@ -176,7 +170,7 @@ contract MevAuctionHook is IHooks, Ownable {
 
     struct SwapContext {
         PoolId poolId;
-        address originalSwapper;  // Track who initiated the swap
+        address originalSwapper; // Track who initiated the swap
         bool zeroForOne;
         int256 amountSpecified;
         uint160 sqrtPriceLimitX96;
@@ -195,10 +189,10 @@ contract MevAuctionHook is IHooks, Ownable {
     // EigenLayer integration (mock interface for now)
     address public eigenLayerRegistry;
     mapping(address => bool) public eigenLayerStakers;
-    
+
     // PoolManager reference for real MEV detection (optional for testing)
     IPoolManager public poolManager;
-    
+
     // LP rewards tracking
     mapping(PoolId => uint256) public poolLPRewards;
 
@@ -216,7 +210,7 @@ contract MevAuctionHook is IHooks, Ownable {
         // In production, the contract must be deployed to an address with correct hook flags
         // Hooks.validateHookPermissions(this, getHookPermissions());
     }
-    
+
     /**
      * @dev Set the PoolManager (for production deployment)
      */
@@ -241,7 +235,7 @@ contract MevAuctionHook is IHooks, Ownable {
         // Store swap context for potential auction settlement
         currentSwapContext = SwapContext({
             poolId: key.toId(),
-            originalSwapper: swapper,  // Capture the original swapper
+            originalSwapper: swapper, // Capture the original swapper
             zeroForOne: params.zeroForOne,
             amountSpecified: params.amountSpecified,
             sqrtPriceLimitX96: params.sqrtPriceLimitX96,
@@ -323,15 +317,19 @@ contract MevAuctionHook is IHooks, Ownable {
 
         // Calculate expected arbitrage profit
         // This represents the profit a back-runner could make by trading in the opposite direction
-        uint256 swapAmount = uint256(params.amountSpecified < 0 ? -params.amountSpecified : params.amountSpecified);
-        
+        uint256 swapAmount = uint256(
+            params.amountSpecified < 0
+                ? -params.amountSpecified
+                : params.amountSpecified
+        );
+
         // Estimate back-run profit based on price impact and swap size
         // The back-runner can profit from the price difference created by the user's swap
         uint256 estimatedProfit = (swapAmount * priceImpact) / 10000;
-        
+
         // Apply a conservative factor to account for gas costs and slippage
         uint256 netProfit = (estimatedProfit * 80) / 100; // 80% of estimated profit
-        
+
         return int256(netProfit);
     }
 
@@ -343,33 +341,37 @@ contract MevAuctionHook is IHooks, Ownable {
         SwapParams calldata params
     ) internal view returns (uint256) {
         // Calculate the amount being swapped
-        uint256 swapAmount = uint256(params.amountSpecified < 0 ? -params.amountSpecified : params.amountSpecified);
-        
+        uint256 swapAmount = uint256(
+            params.amountSpecified < 0
+                ? -params.amountSpecified
+                : params.amountSpecified
+        );
+
         // Get pool tick spacing for calculations
         int24 tickSpacing = key.tickSpacing;
-        
+
         // Calculate price impact based on swap amount and pool parameters
         // This is a simplified model that estimates impact based on:
         // 1. Swap size relative to typical pool sizes
         // 2. Tick spacing (smaller = more precision = less impact)
         // 3. Fee tier (higher fees = more impact)
-        
+
         // Base impact calculation: larger swaps have more impact
         uint256 baseImpact = (swapAmount * 100) / 1e18; // Convert to basis points
-        
+
         // Adjust for tick spacing (smaller tick spacing = less impact)
         uint256 tickAdjustment = (60 * 10000) / uint256(uint24(tickSpacing));
         baseImpact = (baseImpact * tickAdjustment) / 10000;
-        
+
         // Adjust for fee tier (higher fees = more impact)
         uint256 feeAdjustment = (uint256(key.fee) * 10000) / 1000000; // Convert fee to basis points
         baseImpact = (baseImpact * feeAdjustment) / 10000;
-        
+
         // Cap the price impact at 10% (1000 bps)
         if (baseImpact > 1000) {
             baseImpact = 1000;
         }
-        
+
         return baseImpact;
     }
 
@@ -458,23 +460,27 @@ contract MevAuctionHook is IHooks, Ownable {
     ) internal {
         // Calculate optimal back-run trade size
         uint256 backRunAmount = _calculateOptimalBackRunSize(key, auction);
-        
+
         if (backRunAmount == 0) {
             return; // No profitable back-run opportunity
         }
-        
+
         // Execute the back-run swap in the opposite direction
         SwapParams memory backRunParams = SwapParams({
             zeroForOne: !currentSwapContext.zeroForOne, // Opposite direction
             amountSpecified: -int256(backRunAmount), // Negative for exact output
-            sqrtPriceLimitX96: currentSwapContext.zeroForOne ? 4295128739 : 1461446703485210103287273052203988822378723970342 // Min/max price limits
+            sqrtPriceLimitX96: currentSwapContext.zeroForOne
+                ? 4295128739
+                : 1461446703485210103287273052203988822378723970342 // Min/max price limits
         });
-        
+
         // Execute the back-run through the pool manager
         // Note: In a real implementation, this would need to be done through a callback mechanism
         // or by having the hook contract hold the necessary tokens
         if (address(poolManager) != address(0)) {
-            try poolManager.swap(key, backRunParams, "") returns (BalanceDelta delta) {
+            try poolManager.swap(key, backRunParams, "") returns (
+                BalanceDelta delta
+            ) {
                 // Back-run executed successfully
                 // The delta represents the tokens received from the back-run
                 emit BackRunExecuted(auction.poolId, backRunAmount, delta);
@@ -484,10 +490,14 @@ contract MevAuctionHook is IHooks, Ownable {
             }
         } else {
             // PoolManager not set (testing mode) - emit mock success
-            emit BackRunExecuted(auction.poolId, backRunAmount, BalanceDelta.wrap(1000));
+            emit BackRunExecuted(
+                auction.poolId,
+                backRunAmount,
+                BalanceDelta.wrap(1000)
+            );
         }
     }
-    
+
     /**
      * @dev Calculates the optimal back-run trade size
      */
@@ -499,43 +509,46 @@ contract MevAuctionHook is IHooks, Ownable {
         // 1. The price impact created by the original swap
         // 2. Expected arbitrage profit
         // 3. Gas costs and slippage considerations
-        
+
         uint256 expectedProfit = uint256(auction.expectedArbitrage);
-        
+
         // Calculate optimal size to capture most of the arbitrage opportunity
         // The back-run should be sized to capture the price difference created by the original swap
         uint256 optimalSize = (expectedProfit * 2) / 3; // Target 2/3 of expected profit
-        
+
         // Apply pool-specific constraints based on fee tier and tick spacing
         uint256 maxSize = _calculateMaxBackRunSize(key);
         if (optimalSize > maxSize) {
             optimalSize = maxSize;
         }
-        
+
         // Ensure minimum viable size (gas costs)
         uint256 minSize = 1e15; // 0.001 ETH minimum
         if (optimalSize < minSize) {
             return 0; // Not profitable enough
         }
-        
+
         return optimalSize;
     }
-    
+
     /**
      * @dev Calculates maximum back-run size based on pool parameters
      */
-    function _calculateMaxBackRunSize(PoolKey calldata key) internal pure returns (uint256) {
+    function _calculateMaxBackRunSize(
+        PoolKey calldata key
+    ) internal pure returns (uint256) {
         // Base maximum size
         uint256 baseMax = 1000 ether; // 1000 ETH base limit
-        
+
         // Adjust based on fee tier (higher fees = more conservative limits)
         uint256 feeAdjustment = (uint256(key.fee) * 10000) / 1000000; // Convert to basis points
         baseMax = (baseMax * feeAdjustment) / 10000;
-        
+
         // Adjust based on tick spacing (smaller spacing = more precision = higher limits)
-        uint256 tickAdjustment = (uint256(uint24(key.tickSpacing)) * 10000) / 60; // Normalize to 60 tick spacing
+        uint256 tickAdjustment = (uint256(uint24(key.tickSpacing)) * 10000) /
+            60; // Normalize to 60 tick spacing
         baseMax = (baseMax * tickAdjustment) / 10000;
-        
+
         return baseMax;
     }
 
@@ -550,8 +563,13 @@ contract MevAuctionHook is IHooks, Ownable {
         uint256 lpReward = (totalValue * LP_REWARD_BPS) / 10000;
 
         // Send rebate to the original swapper
-        if (swapperRebate > 0 && currentSwapContext.originalSwapper != address(0)) {
-            (bool success, ) = currentSwapContext.originalSwapper.call{value: swapperRebate}("");
+        if (
+            swapperRebate > 0 &&
+            currentSwapContext.originalSwapper != address(0)
+        ) {
+            (bool success, ) = currentSwapContext.originalSwapper.call{
+                value: swapperRebate
+            }("");
             if (!success) {
                 // If swapper rebate fails, add it to LP reward
                 lpReward += swapperRebate;
@@ -568,21 +586,24 @@ contract MevAuctionHook is IHooks, Ownable {
 
         emit ValueRedistributed(key.toId(), swapperRebate, lpReward);
     }
-    
+
     /**
      * @dev Distributes LP reward to the pool
      */
-    function _distributeLPReward(PoolKey calldata key, uint256 reward) internal {
+    function _distributeLPReward(
+        PoolKey calldata key,
+        uint256 reward
+    ) internal {
         // In a real implementation, this would:
         // 1. Mint additional LP tokens to the pool
         // 2. Or distribute fees through Uniswap V4's fee mechanism
         // 3. Or send tokens to a fee distribution contract
-        
+
         // For now, we'll store the reward in a mapping for LPs to claim
         // This is a simplified approach - in production, you'd integrate with
         // Uniswap V4's actual fee distribution system
         poolLPRewards[key.toId()] += reward;
-        
+
         emit LPRewardDistributed(key.toId(), reward);
     }
 
@@ -830,14 +851,14 @@ contract MevAuctionHook is IHooks, Ownable {
     function claimLPReward(PoolId poolId) external {
         uint256 reward = poolLPRewards[poolId];
         require(reward > 0, "No rewards to claim");
-        
+
         // Reset the reward before transfer to prevent reentrancy
         poolLPRewards[poolId] = 0;
-        
+
         // Transfer the reward to the caller
         (bool success, ) = msg.sender.call{value: reward}("");
         require(success, "Reward transfer failed");
-        
+
         emit LPRewardClaimed(poolId, msg.sender, reward);
     }
 

@@ -96,10 +96,10 @@ describe("Simple Enhanced MevAuctionHook Test", function () {
     describe("Core MEV Functionality", function () {
         it("Should calculate price impact correctly", async function () {
             const { mevAuctionHook } = await loadFixture(deployEnhancedMevAuctionHookFixture);
-            
+
             // Test with a large swap amount (should have high price impact)
             const largeSwapAmount = ethers.parseEther("1000"); // 1000 ETH
-            
+
             // We can't directly test the internal function, but we can test the auction logic
             // by checking if large swaps trigger auctions
             expect(await mevAuctionHook.MIN_PRICE_IMPACT_BPS()).to.equal(50);
@@ -107,16 +107,16 @@ describe("Simple Enhanced MevAuctionHook Test", function () {
 
         it("Should handle LP reward distribution", async function () {
             const { mevAuctionHook, lp } = await loadFixture(deployEnhancedMevAuctionHookFixture);
-            
+
             // Create a mock pool ID
             const poolId = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(
                 ["address", "address", "uint24", "int24", "address"],
                 [ethers.ZeroAddress, ethers.ZeroAddress, 3000, 60, mevAuctionHook.target]
             ));
-            
+
             // Initially no rewards
             expect(await mevAuctionHook.getLPRewards(poolId)).to.equal(0);
-            
+
             // Simulate adding rewards (this would normally happen through auction settlement)
             // We can't directly call the internal function, but we can test the claim mechanism
             // by manually setting rewards in the mock pool manager if needed
@@ -124,7 +124,7 @@ describe("Simple Enhanced MevAuctionHook Test", function () {
 
         it("Should track original swapper correctly", async function () {
             const { mevAuctionHook, swapper } = await loadFixture(deployEnhancedMevAuctionHookFixture);
-            
+
             // The swapper tracking is internal to the beforeSwap/afterSwap flow
             // We can verify the contract has the capability by checking the SwapContext structure
             // In a real test, we would need to simulate a full swap through the pool manager
