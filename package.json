@@ -1,0 +1,33 @@
+{
+  "name": "mev-auction-hook",
+  "version": "1.0.0",
+  "description": "MEV-Capturing Auction Hook for Uniswap V4",
+  "main": "index.js",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "deploy": "hardhat run scripts/deploy.js",
+    "coverage": "hardhat coverage"
+  },
+  "keywords": [
+    "defi",
+    "uniswap",
+    "mev",
+    "auction",
+    "solidity"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^4.0.0",
+    "@openzeppelin/contracts": "^5.0.0",
+    "hardhat": "^2.19.0",
+    "chai": "^4.3.7",
+    "ethers": "^6.8.0"
+  },
+  "dependencies": {
+    "@uniswap/v4-core": "^1.0.2",
+    "@uniswap/v4-periphery": "^1.0.3",
+    "@fhenixprotocol/cofhe-contracts": "^0.1.0"
+  }
+}
