@@ -359,9 +359,9 @@ npm run coverage
 
 ```
 test/
-├── MevAuctionHook.test.js           # Basic functionality tests
-├── SimpleEnhancedTest.test.js       # Enhanced features tests
-└── EnhancedMevAuctionHook.test.js   # Comprehensive integration tests
+├── MevAuctionHook.test.js           # Comprehensive functionality tests
+└── contracts/mocks/
+    └── MockERC20.sol                # Mock ERC20 token for testing
 ```
 
 ### Test Coverage

@@ -2,12 +2,12 @@ const { expect } = require("chai");
 const { ethers } = require("hardhat");
 const { loadFixture } = require("@nomicfoundation/hardhat-network-helpers");
 
-describe("Simple Enhanced MevAuctionHook Test", function () {
+describe("MevAuctionHook", function () {
     // Deploy fixture
-    async function deployEnhancedMevAuctionHookFixture() {
+    async function deployMevAuctionHookFixture() {
         const [owner, searcher1, searcher2, swapper, lp] = await ethers.getSigners();
 
-        // Deploy Enhanced MevAuctionHook (no PoolManager needed for basic testing)
+        // Deploy MevAuctionHook (no PoolManager needed for basic testing)
         const MevAuctionHook = await ethers.getContractFactory("MevAuctionHook");
         const mevAuctionHook = await MevAuctionHook.deploy();
 
@@ -21,9 +21,9 @@ describe("Simple Enhanced MevAuctionHook Test", function () {
         };
     }
 
-    describe("Basic Enhanced Functionality", function () {
+    describe("Deployment and Basic Functionality", function () {
         it("Should deploy successfully", async function () {
-            const { mevAuctionHook } = await loadFixture(deployEnhancedMevAuctionHookFixture);
+            const { mevAuctionHook } = await loadFixture(deployMevAuctionHookFixture);
 
             expect(await mevAuctionHook.nextAuctionId()).to.equal(1);
             expect(await mevAuctionHook.MIN_PRICE_IMPACT_BPS()).to.equal(50);
@@ -33,7 +33,7 @@ describe("Simple Enhanced MevAuctionHook Test", function () {
         });
 
         it("Should register EigenLayer stakers", async function () {
-            const { mevAuctionHook, searcher1 } = await loadFixture(deployEnhancedMevAuctionHookFixture);
+            const { mevAuctionHook, searcher1 } = await loadFixture(deployMevAuctionHookFixture);
 
             // Initially not a staker
             expect(await mevAuctionHook.isEigenLayerStaker(searcher1.address)).to.be.false;
@@ -46,7 +46,7 @@ describe("Simple Enhanced MevAuctionHook Test", function () {
         });
 
         it("Should have correct hook permissions", async function () {
-            const { mevAuctionHook } = await loadFixture(deployEnhancedMevAuctionHookFixture);
+            const { mevAuctionHook } = await loadFixture(deployMevAuctionHookFixture);
 
             const permissions = await mevAuctionHook.getHookPermissions();
 
@@ -64,7 +64,7 @@ describe("Simple Enhanced MevAuctionHook Test", function () {
         });
 
         it("Should allow emergency withdraw by owner", async function () {
-            const { mevAuctionHook, owner, searcher1 } = await loadFixture(deployEnhancedMevAuctionHookFixture);
+            const { mevAuctionHook, owner, searcher1 } = await loadFixture(deployMevAuctionHookFixture);
 
             // Send some ETH to the contract
             await searcher1.sendTransaction({
@@ -84,7 +84,7 @@ describe("Simple Enhanced MevAuctionHook Test", function () {
         });
 
         it("Should reject emergency withdraw by non-owner", async function () {
-            const { mevAuctionHook, searcher1 } = await loadFixture(deployEnhancedMevAuctionHookFixture);
+            const { mevAuctionHook, searcher1 } = await loadFixture(deployMevAuctionHookFixture);
 
             // Non-owner should not be able to emergency withdraw
             await expect(
@@ -95,7 +95,7 @@ describe("Simple Enhanced MevAuctionHook Test", function () {
 
     describe("Core MEV Functionality", function () {
         it("Should calculate price impact correctly", async function () {
-            const { mevAuctionHook } = await loadFixture(deployEnhancedMevAuctionHookFixture);
+            const { mevAuctionHook } = await loadFixture(deployMevAuctionHookFixture);
 
             // Test with a large swap amount (should have high price impact)
             const largeSwapAmount = ethers.parseEther("1000"); // 1000 ETH
@@ -106,7 +106,7 @@ describe("Simple Enhanced MevAuctionHook Test", function () {
         });
 
         it("Should handle LP reward distribution", async function () {
-            const { mevAuctionHook, lp } = await loadFixture(deployEnhancedMevAuctionHookFixture);
+            const { mevAuctionHook, lp } = await loadFixture(deployMevAuctionHookFixture);
 
             // Create a mock pool ID
             const poolId = ethers.keccak256(ethers.AbiCoder.defaultAbiCoder().encode(
@@ -123,7 +123,7 @@ describe("Simple Enhanced MevAuctionHook Test", function () {
         });
 
         it("Should track original swapper correctly", async function () {
-            const { mevAuctionHook, swapper } = await loadFixture(deployEnhancedMevAuctionHookFixture);
+            const { mevAuctionHook, swapper } = await loadFixture(deployMevAuctionHookFixture);
 
             // The swapper tracking is internal to the beforeSwap/afterSwap flow
             // We can verify the contract has the capability by checking the SwapContext structure
