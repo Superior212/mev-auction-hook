@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.24;
+pragma solidity ^0.8.25;
 
 import {IHooks} from "@uniswap/v4-core/src/interfaces/IHooks.sol";
 import {Hooks} from "@uniswap/v4-core/src/libraries/Hooks.sol";
@@ -13,21 +13,31 @@ import {ModifyLiquidityParams, SwapParams} from "@uniswap/v4-core/src/types/Pool
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {FHE, ebool, euint8, euint16, euint32, euint64, euint128, euint256, eaddress} from "@fhenixprotocol/cofhe-contracts/FHE.sol";
 
 /**
  * @title MevAuctionHook
- * @dev MEV-Capturing Auction Hook for Uniswap V4
+ * @dev Enhanced MEV-Capturing Auction Hook for Uniswap V4
  *
  * This hook implements a defensive DeFi primitive that:
  * 1. Detects MEV opportunities in beforeSwap
- * 2. Conducts in-flight auctions for back-run rights
+ * 2. Conducts in-flight auctions for back-run rights (public, private, or EigenLayer-protected)
  * 3. Captures and redistributes MEV value to users and LPs
+ * 4. Integrates Fhenix FHE for private bidding
+ * 5. Integrates EigenLayer for slashing protection
  */
 contract MevAuctionHook is IHooks, Ownable {
     using PoolIdLibrary for PoolKey;
     using CurrencyLibrary for Currency;
     using SafeERC20 for IERC20;
     using BeforeSwapDeltaLibrary for BeforeSwapDelta;
+
+    // Auction types
+    enum AuctionType { 
+        PUBLIC,           // Traditional public auction
+        PRIVATE,          // Fhenix FHE private auction
+        EIGENLAYER_PROTECTED  // EigenLayer slashing protection
+    }
 
     // Hook permissions - only beforeSwap and afterSwap
     function getHookPermissions()
@@ -80,6 +90,33 @@ contract MevAuctionHook is IHooks, Ownable {
         uint256 lpReward
     );
 
+    // Enhanced events
+    event EnhancedAuctionStarted(
+        PoolId indexed poolId,
+        uint256 indexed auctionId,
+        AuctionType auctionType,
+        uint256 minBid,
+        uint256 deadline
+    );
+
+    event PrivateBidSubmitted(
+        uint256 indexed auctionId,
+        address indexed bidder,
+        bool isEncrypted
+    );
+
+    event WinnerRevealed(
+        uint256 indexed auctionId,
+        address indexed winner,
+        uint256 winningBid
+    );
+
+    event EigenLayerSlashing(
+        uint256 indexed auctionId,
+        address indexed bidder,
+        uint256 slashedAmount
+    );
+
     // Structs
     struct Auction {
         PoolId poolId;
@@ -91,6 +128,30 @@ contract MevAuctionHook is IHooks, Ownable {
         Currency currency0;
         Currency currency1;
         int256 expectedArbitrage;
+    }
+
+    // Enhanced auction structure with Fhenix and EigenLayer support
+    struct EnhancedAuction {
+        AuctionType auctionType;
+        PoolId poolId;
+        uint256 minBid;
+        uint256 highestBid;
+        address highestBidder;
+        uint256 deadline;
+        bool settled;
+        Currency currency0;
+        Currency currency1;
+        int256 expectedArbitrage;
+        
+        // Fhenix FHE encrypted fields
+        euint256 encryptedBid;
+        eaddress encryptedBidder;
+        bool decryptionRequested;
+        
+        // EigenLayer fields
+        bool requiresEigenLayerStake;
+        uint256 slashingAmount;
+        bool isSlashed;
     }
 
     struct SwapContext {
@@ -105,6 +166,14 @@ contract MevAuctionHook is IHooks, Ownable {
     uint256 public nextAuctionId = 1;
     mapping(uint256 => Auction) public auctions;
     mapping(PoolId => uint256) public activeAuctions;
+    
+    // Enhanced state variables
+    mapping(uint256 => EnhancedAuction) public enhancedAuctions;
+    mapping(PoolId => uint256) public activeEnhancedAuctions;
+    
+    // EigenLayer integration (mock interface for now)
+    address public eigenLayerRegistry;
+    mapping(address => bool) public eigenLayerStakers;
 
     // Configuration
     uint256 public constant MIN_PRICE_IMPACT_BPS = 50; // 0.5%
@@ -373,6 +442,190 @@ contract MevAuctionHook is IHooks, Ownable {
      */
     function getActiveAuction(PoolId poolId) external view returns (uint256) {
         return activeAuctions[poolId];
+    }
+
+    // ============ Enhanced Auction Functions ============
+
+    /**
+     * @dev Start an enhanced auction with specified type
+     */
+    function startEnhancedAuction(
+        PoolKey calldata key,
+        int256 expectedArbitrage,
+        AuctionType auctionType
+    ) external onlyOwner {
+        uint256 auctionId = nextAuctionId++;
+        PoolId poolId = key.toId();
+
+        EnhancedAuction storage auction = enhancedAuctions[auctionId];
+        auction.auctionType = auctionType;
+        auction.poolId = poolId;
+        auction.minBid = uint256(expectedArbitrage) / 10;
+        auction.deadline = block.number + MAX_AUCTION_DURATION;
+        auction.currency0 = key.currency0;
+        auction.currency1 = key.currency1;
+        auction.expectedArbitrage = expectedArbitrage;
+        auction.requiresEigenLayerStake = (auctionType == AuctionType.EIGENLAYER_PROTECTED);
+        auction.slashingAmount = auction.requiresEigenLayerStake ? auction.minBid * 2 : 0;
+
+        if (auctionType == AuctionType.PRIVATE) {
+            // Initialize encrypted fields for private auctions
+            auction.encryptedBid = FHE.asEuint256(0);
+            auction.encryptedBidder = FHE.asEaddress(address(0));
+            FHE.allowThis(auction.encryptedBid);
+            FHE.allowThis(auction.encryptedBidder);
+        }
+
+        activeEnhancedAuctions[poolId] = auctionId;
+
+        emit EnhancedAuctionStarted(
+            poolId,
+            auctionId,
+            auctionType,
+            auction.minBid,
+            auction.deadline
+        );
+    }
+
+    /**
+     * @dev Submit a private bid using Fhenix FHE
+     */
+    function privateBid(uint256 auctionId, uint256 bidAmount) external {
+        EnhancedAuction storage auction = enhancedAuctions[auctionId];
+        require(auction.auctionType == AuctionType.PRIVATE, "Not a private auction");
+        require(block.number <= auction.deadline, "Auction expired");
+        require(!auction.settled, "Auction already settled");
+        require(!auction.decryptionRequested, "Decryption already requested");
+
+        euint256 encryptedBid = FHE.asEuint256(bidAmount);
+        ebool isHigher = FHE.gt(encryptedBid, auction.encryptedBid);
+
+        // Update encrypted auction state
+        auction.encryptedBid = FHE.max(encryptedBid, auction.encryptedBid);
+        auction.encryptedBidder = FHE.select(
+            isHigher,
+            FHE.asEaddress(msg.sender),
+            auction.encryptedBidder
+        );
+
+        // Preserve access control
+        FHE.allowThis(auction.encryptedBid);
+        FHE.allowThis(auction.encryptedBidder);
+
+        emit PrivateBidSubmitted(auctionId, msg.sender, true);
+    }
+
+    /**
+     * @dev Submit a bid for EigenLayer-protected auction
+     */
+    function eigenLayerBid(uint256 auctionId) external payable {
+        EnhancedAuction storage auction = enhancedAuctions[auctionId];
+        require(auction.auctionType == AuctionType.EIGENLAYER_PROTECTED, "Not an EigenLayer auction");
+        require(block.number <= auction.deadline, "Auction expired");
+        require(!auction.settled, "Auction already settled");
+        require(_hasEigenLayerStake(msg.sender), "No EigenLayer stake");
+        require(msg.value > auction.highestBid, "Bid too low");
+
+        // Refund previous highest bidder
+        if (auction.highestBidder != address(0)) {
+            (bool success, ) = auction.highestBidder.call{value: auction.highestBid}("");
+            require(success, "Refund failed");
+        }
+
+        // Update auction state
+        auction.highestBid = msg.value;
+        auction.highestBidder = msg.sender;
+
+        emit BidSubmitted(auctionId, msg.sender, msg.value);
+    }
+
+    /**
+     * @dev Request decryption for private auction
+     */
+    function requestDecryption(uint256 auctionId) external onlyOwner {
+        EnhancedAuction storage auction = enhancedAuctions[auctionId];
+        require(auction.auctionType == AuctionType.PRIVATE, "Not a private auction");
+        require(!auction.decryptionRequested, "Decryption already requested");
+
+        // Request decryption as per Fhenix docs
+        FHE.decrypt(auction.encryptedBid);
+        FHE.decrypt(auction.encryptedBidder);
+        auction.decryptionRequested = true;
+    }
+
+    /**
+     * @dev Reveal winner of private auction using safe decryption
+     */
+    function revealWinner(uint256 auctionId) external onlyOwner {
+        EnhancedAuction storage auction = enhancedAuctions[auctionId];
+        require(auction.auctionType == AuctionType.PRIVATE, "Not a private auction");
+        require(auction.decryptionRequested, "Decryption not requested");
+        require(!auction.settled, "Auction already settled");
+
+        // Safe decryption as recommended by Fhenix docs
+        (uint256 bidValue, bool bidReady) = FHE.getDecryptResultSafe(auction.encryptedBid);
+        require(bidReady, "Bid not yet decrypted");
+
+        (address bidderValue, bool bidderReady) = FHE.getDecryptResultSafe(auction.encryptedBidder);
+        require(bidderReady, "Bidder not yet decrypted");
+
+        // Update auction with decrypted values
+        auction.highestBid = bidValue;
+        auction.highestBidder = bidderValue;
+        auction.settled = true;
+
+        emit WinnerRevealed(auctionId, bidderValue, bidValue);
+    }
+
+    /**
+     * @dev Check if address has EigenLayer stake (mock implementation)
+     */
+    function _hasEigenLayerStake(address staker) internal view returns (bool) {
+        // In production, this would check against actual EigenLayer registry
+        return eigenLayerStakers[staker];
+    }
+
+    /**
+     * @dev Register EigenLayer staker (for testing)
+     */
+    function registerEigenLayerStaker(address staker) external onlyOwner {
+        eigenLayerStakers[staker] = true;
+    }
+
+    /**
+     * @dev Slash EigenLayer staker for malicious behavior
+     */
+    function slashEigenLayerStaker(uint256 auctionId, address staker) external onlyOwner {
+        EnhancedAuction storage auction = enhancedAuctions[auctionId];
+        require(auction.auctionType == AuctionType.EIGENLAYER_PROTECTED, "Not an EigenLayer auction");
+        require(auction.highestBidder == staker, "Not the winning bidder");
+        require(!auction.isSlashed, "Already slashed");
+
+        auction.isSlashed = true;
+        
+        // In production, this would trigger actual EigenLayer slashing
+        emit EigenLayerSlashing(auctionId, staker, auction.slashingAmount);
+    }
+
+    /**
+     * @dev Get enhanced auction details
+     */
+    function getEnhancedAuction(uint256 auctionId) external view returns (EnhancedAuction memory) {
+        return enhancedAuctions[auctionId];
+    }
+
+    /**
+     * @dev Get active enhanced auction for a pool
+     */
+    function getActiveEnhancedAuction(PoolId poolId) external view returns (uint256) {
+        return activeEnhancedAuctions[poolId];
+    }
+
+    /**
+     * @dev Check if address is registered as EigenLayer staker
+     */
+    function isEigenLayerStaker(address staker) external view returns (bool) {
+        return eigenLayerStakers[staker];
     }
 
     // Required IHooks interface functions (not used by this hook)
