@@ -29,7 +29,10 @@ npm run deploy
 
 ```javascript
 const MevAuctionHook = await ethers.getContractFactory("MevAuctionHook");
-const hook = await MevAuctionHook.deploy(poolManagerAddress);
+const hook = await MevAuctionHook.deploy();
+
+// Set PoolManager (for production)
+await hook.setPoolManager(poolManagerAddress);
 ```
 
 2. **Create Pool with Hook**:
@@ -40,7 +43,7 @@ const poolKey = {
   currency1: token1Address,
   fee: 3000,
   tickSpacing: 60,
-  hooks: hook.address, // Include the hook address
+  hooks: hook.target, // Include the hook address
 };
 
 await poolManager.initialize(poolKey, initialSqrtPrice);

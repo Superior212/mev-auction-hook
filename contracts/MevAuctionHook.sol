@@ -17,7 +17,7 @@ import {FHE, ebool, euint8, euint16, euint32, euint64, euint128, euint256, eaddr
 
 /**
  * @title MevAuctionHook
- * @dev Enhanced MEV-Capturing Auction Hook for Uniswap V4
+ * @dev MEV-Capturing Auction Hook for Uniswap V4
  *
  * This hook implements a defensive DeFi primitive that:
  * 1. Detects MEV opportunities in beforeSwap
@@ -90,8 +90,8 @@ contract MevAuctionHook is IHooks, Ownable {
         uint256 lpReward
     );
 
-    // Enhanced events
-    event EnhancedAuctionStarted(
+    // Advanced auction events
+    event AdvancedAuctionStarted(
         PoolId indexed poolId,
         uint256 indexed auctionId,
         AuctionType auctionType,
@@ -146,8 +146,8 @@ contract MevAuctionHook is IHooks, Ownable {
         int256 expectedArbitrage;
     }
 
-    // Enhanced auction structure with Fhenix and EigenLayer support
-    struct EnhancedAuction {
+    // Advanced auction structure with Fhenix and EigenLayer support
+    struct AdvancedAuction {
         AuctionType auctionType;
         PoolId poolId;
         uint256 minBid;
@@ -182,9 +182,9 @@ contract MevAuctionHook is IHooks, Ownable {
     mapping(uint256 => Auction) public auctions;
     mapping(PoolId => uint256) public activeAuctions;
 
-    // Enhanced state variables
-    mapping(uint256 => EnhancedAuction) public enhancedAuctions;
-    mapping(PoolId => uint256) public activeEnhancedAuctions;
+    // Advanced auction state variables
+    mapping(uint256 => AdvancedAuction) public advancedAuctions;
+    mapping(PoolId => uint256) public activeAdvancedAuctions;
 
     // EigenLayer integration (mock interface for now)
     address public eigenLayerRegistry;
@@ -630,12 +630,12 @@ contract MevAuctionHook is IHooks, Ownable {
         return activeAuctions[poolId];
     }
 
-    // ============ Enhanced Auction Functions ============
+    // ============ Advanced Auction Functions ============
 
     /**
-     * @dev Start an enhanced auction with specified type
+     * @dev Start an advanced auction with specified type
      */
-    function startEnhancedAuction(
+    function startAdvancedAuction(
         PoolKey calldata key,
         int256 expectedArbitrage,
         AuctionType auctionType
@@ -643,7 +643,7 @@ contract MevAuctionHook is IHooks, Ownable {
         uint256 auctionId = nextAuctionId++;
         PoolId poolId = key.toId();
 
-        EnhancedAuction storage auction = enhancedAuctions[auctionId];
+        AdvancedAuction storage auction = advancedAuctions[auctionId];
         auction.auctionType = auctionType;
         auction.poolId = poolId;
         auction.minBid = uint256(expectedArbitrage) / 10;
@@ -665,9 +665,9 @@ contract MevAuctionHook is IHooks, Ownable {
             FHE.allowThis(auction.encryptedBidder);
         }
 
-        activeEnhancedAuctions[poolId] = auctionId;
+        activeAdvancedAuctions[poolId] = auctionId;
 
-        emit EnhancedAuctionStarted(
+        emit AdvancedAuctionStarted(
             poolId,
             auctionId,
             auctionType,
@@ -680,7 +680,7 @@ contract MevAuctionHook is IHooks, Ownable {
      * @dev Submit a private bid using Fhenix FHE
      */
     function privateBid(uint256 auctionId, uint256 bidAmount) external {
-        EnhancedAuction storage auction = enhancedAuctions[auctionId];
+        AdvancedAuction storage auction = advancedAuctions[auctionId];
         require(
             auction.auctionType == AuctionType.PRIVATE,
             "Not a private auction"
@@ -711,7 +711,7 @@ contract MevAuctionHook is IHooks, Ownable {
      * @dev Submit a bid for EigenLayer-protected auction
      */
     function eigenLayerBid(uint256 auctionId) external payable {
-        EnhancedAuction storage auction = enhancedAuctions[auctionId];
+        AdvancedAuction storage auction = advancedAuctions[auctionId];
         require(
             auction.auctionType == AuctionType.EIGENLAYER_PROTECTED,
             "Not an EigenLayer auction"
@@ -740,7 +740,7 @@ contract MevAuctionHook is IHooks, Ownable {
      * @dev Request decryption for private auction
      */
     function requestDecryption(uint256 auctionId) external onlyOwner {
-        EnhancedAuction storage auction = enhancedAuctions[auctionId];
+        AdvancedAuction storage auction = advancedAuctions[auctionId];
         require(
             auction.auctionType == AuctionType.PRIVATE,
             "Not a private auction"
@@ -757,7 +757,7 @@ contract MevAuctionHook is IHooks, Ownable {
      * @dev Reveal winner of private auction using safe decryption
      */
     function revealWinner(uint256 auctionId) external onlyOwner {
-        EnhancedAuction storage auction = enhancedAuctions[auctionId];
+        AdvancedAuction storage auction = advancedAuctions[auctionId];
         require(
             auction.auctionType == AuctionType.PRIVATE,
             "Not a private auction"
@@ -806,7 +806,7 @@ contract MevAuctionHook is IHooks, Ownable {
         uint256 auctionId,
         address staker
     ) external onlyOwner {
-        EnhancedAuction storage auction = enhancedAuctions[auctionId];
+        AdvancedAuction storage auction = advancedAuctions[auctionId];
         require(
             auction.auctionType == AuctionType.EIGENLAYER_PROTECTED,
             "Not an EigenLayer auction"
@@ -821,21 +821,21 @@ contract MevAuctionHook is IHooks, Ownable {
     }
 
     /**
-     * @dev Get enhanced auction details
+     * @dev Get advanced auction details
      */
-    function getEnhancedAuction(
+    function getAdvancedAuction(
         uint256 auctionId
-    ) external view returns (EnhancedAuction memory) {
-        return enhancedAuctions[auctionId];
+    ) external view returns (AdvancedAuction memory) {
+        return advancedAuctions[auctionId];
     }
 
     /**
-     * @dev Get active enhanced auction for a pool
+     * @dev Get active advanced auction for a pool
      */
-    function getActiveEnhancedAuction(
+    function getActiveAdvancedAuction(
         PoolId poolId
     ) external view returns (uint256) {
-        return activeEnhancedAuctions[poolId];
+        return activeAdvancedAuctions[poolId];
     }
 
     /**

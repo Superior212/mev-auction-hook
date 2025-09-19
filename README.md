@@ -26,12 +26,12 @@ This creates a fairer, more transparent, and more efficient trading environment 
 - **Atomic Execution**: All operations within the same transaction block
 - **Value Redistribution**: 50% swapper rebates, 50% LP rewards
 
-### Enhanced Security & Privacy
+### Security & Privacy Features
 
-- **Fhenix FHE Integration**: Private bidding with encrypted amounts
-- **EigenLayer Integration**: Slashing protection for bidders
+- **Private Bidding**: Fhenix FHE encrypted bidding amounts
+- **Economic Security**: EigenLayer slashing protection for bidders
 - **Multiple Auction Types**: PUBLIC, PRIVATE, EIGENLAYER_PROTECTED
-- **Economic Security**: Restaking-based guarantees
+- **Restaking Guarantees**: Economic security through restaking
 
 ### Advanced Capabilities
 
@@ -66,7 +66,7 @@ This creates a fairer, more transparent, and more efficient trading environment 
 
 ```bash
 # Clone the repository
-git clone <repository-url>
+git clone https://github.com/Superior212/mev-auction-hook
 cd mev-auction-hook
 
 # Install dependencies
@@ -305,13 +305,13 @@ if (rewards > 0) {
 - **Payable**: Yes
 - **Events**: `BidSubmitted`
 
-### Enhanced Functions
+### Advanced Functions
 
-#### `startEnhancedAuction(PoolKey calldata key, AuctionType auctionType, uint256 minBid)`
+#### `startAdvancedAuction(PoolKey calldata key, AuctionType auctionType, uint256 minBid)`
 
-- **Purpose**: Start an enhanced auction with specified type
+- **Purpose**: Start an advanced auction with specified type
 - **Access**: Owner only
-- **Events**: `EnhancedAuctionStarted`
+- **Events**: `AdvancedAuctionStarted`
 
 #### `privateBid(uint256 auctionId, euint256 encryptedBid, eaddress encryptedBidder)`
 
@@ -347,9 +347,6 @@ if (rewards > 0) {
 ```bash
 # Run all tests
 npm test
-
-# Run specific test suite
-npm test -- --grep "Simple Enhanced MevAuctionHook Test"
 
 # Run with coverage
 npm run coverage
@@ -422,7 +419,7 @@ hook.setPoolManager(poolManagerAddress);
 3. **Pool Manager Setup**: Set the PoolManager reference
 4. **Testing**: Test with small amounts first
 
-### EigenLayer Integration
+### Economic Security Integration
 
 ```solidity
 // Register stakers
@@ -532,9 +529,8 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 📞 Support
 
 - **Documentation**: [Full Documentation](docs/)
-- **Issues**: [GitHub Issues](https://github.com/your-repo/issues)
-- **Discord**: [Community Discord](https://discord.gg/your-discord)
-- **Twitter**: [@YourTwitter](https://twitter.com/yourtwitter)
+- **Issues**: [GitHub Issues](https://github.com/Superior212/mev-auction-hook/issues)
+- **Twitter**: [@samsonaderonmu](https://x.com/samsonaderonmu)
 
 ---
 
